@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Update setuptools, GitHub Actions, pre-commit hooks, and the Ruff and pre-commit versions pinned in the Makefile. Python compatibility changes by hand."
+  ],
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Istanbul",
+  "schedule": ["before 9am on saturday"],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 5,
+  "semanticCommitType": "chore",
+  "baseBranchPatterns": ["main"],
+  "enabledManagers": ["pep621", "github-actions", "pre-commit", "custom.regex"],
+  "pre-commit": {"enabled": true},
+  "branchPrefix": "renovate/",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Review pre-commit hook updates together",
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit hooks"
+    },
+    {
+      "description": "Python compatibility changes by hand",
+      "matchDepTypes": ["requires-python"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Ruff run through uvx at the Makefile version",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": ["RUFF_VERSION \\?= (?<currentValue>\\S+)"],
+      "depNameTemplate": "ruff",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "pre-commit run through uvx at the Makefile version",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": ["PRE_COMMIT_VERSION \\?= (?<currentValue>\\S+)"],
+      "depNameTemplate": "pre-commit",
+      "datasourceTemplate": "pypi"
+    }
+  ]
+}
