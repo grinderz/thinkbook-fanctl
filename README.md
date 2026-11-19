@@ -28,9 +28,10 @@ installer ignores project Python pins unless the interpreter is selected
 explicitly.
 There are no third-party Python runtime dependencies. Installing the package
 does not start monitoring or change fan speeds. Chezmoi is not involved.
-The install target precompiles bytecode as your user. This avoids a later
+The default install precompiles the installed package as your user. This avoids a later
 `sudo` invocation creating root-owned `__pycache__` files that can block
-the next `uv tool install --force`.
+the next `uv tool install --force`. An editable install imports the files in
+`src/` directly. Python can create bytecode there on first use.
 
 If `/proc/acpi/call` is missing, load the module:
 
@@ -74,14 +75,27 @@ are not independently established limits for fan 2. Use `auto`, not a zero
 target, to return control to the firmware.
 
 Request/response pairs are serialized between this utility's processes.
-A second manual session is rejected; reads and `auto` remain available.
-An external `auto` request changes the targets, causing a manual session to
-exit at its next target check and request automatic control again. Older
-diagnostic scripts and other ACPI clients do not share these locks.
+A second manual session is rejected. An `auto` command cancels a pending
+session during its initial telemetry or output. The session checks for
+cancellation at least every 250 ms while waiting on an interruptible operation,
+including a full output pipe, and releases its lock on exit. If the first target write has
+already started, `auto` waits for both writes and then restores firmware
+control. The CLI verifies both targets and the manual-mode bit after the
+writes and checks them again at each sample.
+Older diagnostic scripts and other ACPI clients do not share these locks.
 
-Manual cleanup handles SIGINT, SIGTERM, and SIGHUP and retries automatic
-control up to three times. SIGKILL and a hung process cannot run cleanup.
-If all automatic-control requests fail, reboot to reset control.
+Ctrl+C and Ctrl+Z both end a manual session and restore automatic control.
+SIGTERM, SIGHUP, and the terminal job-control signals SIGTTIN and SIGTTOU
+also trigger cleanup. A stop signal that arrives during
+recovery is deferred until the automatic-control request and mode check finish.
+The session temporarily unblocks its timer signal. At the requested deadline the timer
+interrupts sampling, including a blocked output pipe, so cleanup can begin.
+The CLI checks the EC mode bit even if the auto request's reply is lost.
+If the final telemetry read fails, the CLI checks the mode separately. A
+confirmed auto mode leaves only the telemetry error to report. A manual or
+unreadable mode uses the remaining attempts within the same three-request limit.
+If it cannot confirm automatic control, reboot to reset control. SIGKILL,
+SIGSTOP, and uninterruptible kernel I/O can prevent cleanup.
 
 ## Protocol and hardware validation
 
